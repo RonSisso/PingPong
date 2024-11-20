@@ -83,11 +83,19 @@ def plot_ball_positions(timestamps, x_positions, y_positions):
     valid_x_positions = x_positions[valid_indices]
     valid_y_positions = y_positions[valid_indices]
 
+    # Get the initial position of the ball
+    initial_x = valid_x_positions[0]
+    initial_y = valid_y_positions[0]
+
+    # Shift positions to make the first frame the origin
+    relative_x_positions = valid_x_positions - initial_x
+    relative_y_positions = initial_y - valid_y_positions  # Inverted to make upward movement positive
+
     plt.figure(figsize=(12, 6))
 
     # X-coordinate vs Time
     plt.subplot(2, 1, 1)
-    plt.plot(valid_timestamps, valid_x_positions, label="X Position")
+    plt.plot(valid_timestamps, relative_x_positions, label="X Position")
     plt.xlabel("Time (s)")
     plt.ylabel("X Position (pixels)")
     plt.title("Ping Pong Ball X Position Over Time")
@@ -96,7 +104,7 @@ def plot_ball_positions(timestamps, x_positions, y_positions):
 
     # Y-coordinate vs Time
     plt.subplot(2, 1, 2)
-    plt.plot(valid_timestamps, valid_y_positions, label="Y Position", color="orange")
+    plt.plot(valid_timestamps, relative_y_positions, label="Y Position", color="orange")
     plt.xlabel("Time (s)")
     plt.ylabel("Y Position (pixels)")
     plt.title("Ping Pong Ball Y Position Over Time")

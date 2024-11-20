@@ -30,12 +30,12 @@ def process_video(video_path):
     timestamps = np.arange(0, total_frames) / fps
 
     frame_index = 0
-    while True:
-        ret, frame = cap.read()
+    while True: # Loop through each frame
+        ret, frame = cap.read() # Read the frame from the video if ret = false -> no more frames -> break the loop
         if not ret:
             break
 
-        # Preprocess frame: convert to grayscale and apply Gaussian blur
+        # Preprocess frame: convert to grayscale and apply Gaussian blur for noise reduction
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (9, 9), 2)
 
@@ -51,16 +51,18 @@ def process_video(video_path):
             x_positions[frame_index] = x
             y_positions[frame_index] = y
 
-            # Optional: Draw the detected circle
-            cv2.circle(frame, (int(x), int(y)), 5, (0, 255, 0), 2)
+            #Draw the detected circle
+            cv2.circle(frame, (int(x), int(y)), 5, (0, 255, 0), 4)
 
         frame_index += 1
 
-        # Optional: Display the frame (press 'q' to quit)
-        cv2.imshow("Frame", frame)
+
+        #Display the frame (press 'q' to quit)
+        cv2.imshow("Ping Pong Detector", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+    # Release the video capture and close the window
     cap.release()
     cv2.destroyAllWindows()
     return x_positions, y_positions, timestamps

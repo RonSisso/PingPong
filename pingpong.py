@@ -68,18 +68,16 @@ def process_video(video_path):
     return x_positions, y_positions, timestamps
 
 
-def plot_ball_positions(timestamps, x_positions, y_positions):
+def plot_ball_route(x_positions, y_positions):
     """
-    Plot the x and y positions of the ping pong ball over time.
+    Plot the route of the ping pong ball, showing its vertical position (y) as a function of its horizontal position (x).
 
     Args:
-        timestamps (np.ndarray): Timestamps for each frame.
         x_positions (np.ndarray): X coordinates of the ball.
         y_positions (np.ndarray): Y coordinates of the ball.
     """
     # Filter out NaN values for continuous plotting
     valid_indices = ~np.isnan(x_positions)
-    valid_timestamps = timestamps[valid_indices]
     valid_x_positions = x_positions[valid_indices]
     valid_y_positions = y_positions[valid_indices]
 
@@ -91,28 +89,18 @@ def plot_ball_positions(timestamps, x_positions, y_positions):
     relative_x_positions = valid_x_positions - initial_x
     relative_y_positions = initial_y - valid_y_positions  # Inverted to make upward movement positive
 
-    plt.figure(figsize=(12, 6))
 
-    # X-coordinate vs Time
-    plt.subplot(2, 1, 1)
-    plt.plot(valid_timestamps, relative_x_positions, label="X Position")
-    plt.xlabel("Time (s)")
-    plt.ylabel("X Position (pixels)")
-    plt.title("Ping Pong Ball X Position Over Time")
+
+    # Plot Y as a function of X
+    plt.figure(figsize=(8, 6))
+    plt.plot(relative_x_positions, relative_y_positions, label="Ball Route", color="blue")
+    plt.xlabel("X Position (pixels)")
+    plt.ylabel("Y Position (pixels, Upward)")
+    plt.title("Ping Pong Ball Route (Y as a Function of X)")
     plt.grid()
     plt.legend()
-
-    # Y-coordinate vs Time
-    plt.subplot(2, 1, 2)
-    plt.plot(valid_timestamps, relative_y_positions, label="Y Position", color="orange")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Y Position (pixels)")
-    plt.title("Ping Pong Ball Y Position Over Time")
-    plt.grid()
-    plt.legend()
-
-    plt.tight_layout()
     plt.show()
+
 
 
 def main(video_path):
@@ -126,7 +114,7 @@ def main(video_path):
     if np.all(np.isnan(x_positions)):
         print("No ping pong ball detected.")
         return
-    plot_ball_positions(timestamps, x_positions, y_positions)
+    plot_ball_route(x_positions, y_positions)
 
 
 # Run the program

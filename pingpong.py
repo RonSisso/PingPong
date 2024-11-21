@@ -1,4 +1,5 @@
 import cv2
+import numpy
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -27,6 +28,7 @@ def process_video(video_path):
     # Initialize arrays for positions and timestamps
     x_positions = np.full(total_frames, np.nan)
     y_positions = np.full(total_frames, np.nan)
+    ball_radius = np.full(total_frames, np.nan)
     timestamps = np.arange(0, total_frames) / fps
 
     frame_index = 0
@@ -47,9 +49,10 @@ def process_video(video_path):
 
         # If a circle is detected, store its position
         if circles is not None:
-            x, y, _ = circles[0, 0]  # Take the first detected circle
+            x, y, radius = circles[0, 0]  # Take the first detected circle
             x_positions[frame_index] = x
             y_positions[frame_index] = y
+            ball_radius[frame_index] = radius
 
             #Draw the detected circle
             cv2.circle(frame, (int(x), int(y)), 5, (0, 255, 0), 4)
@@ -65,7 +68,7 @@ def process_video(video_path):
     # Release the video capture and close the window
     cap.release()
     cv2.destroyAllWindows()
-    return x_positions, y_positions, timestamps
+    return x_positions, y_positions, timestamps, ball_radius
 
 
 def plot_ball_route(x_positions, y_positions):
@@ -110,10 +113,19 @@ def main(video_path):
     Args:
         video_path (str): Path to the video file.
     """
-    x_positions, y_positions, timestamps = process_video(video_path)
+
+    x_positions, y_positions, timestamps, ball_radius = process_video(video_path)
+
     if np.all(np.isnan(x_positions)):
         print("No ping pong ball detected.")
         return
+
+    # Calculate the conversion factor from pixels to meters
+    valid_indices = ~np.isnan(ball_radius)
+    ball_radius = ball_radius[valid_indices]
+    radius_pixels = numpy.average(ball_radius)
+    conversion_factor = 0.02 / radius_pixels # 0.02 meters is the standard radius of a ping pong ball
+
     plot_ball_route(x_positions, y_positions)
 
 

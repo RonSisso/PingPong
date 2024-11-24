@@ -1,5 +1,4 @@
 import cv2
-import numpy
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -55,7 +54,8 @@ def process_video(video_path):
             ball_radius[frame_index] = radius
 
             #Draw the detected circle
-            cv2.circle(frame, (int(x), int(y)), 5, (0, 255, 0), 4)
+            cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 0), 2)
+            cv2.circle(frame, (int(x), int(y)), 2, (0, 0, 255), 3)
 
         frame_index += 1
 
@@ -70,19 +70,13 @@ def process_video(video_path):
     cv2.destroyAllWindows()
     return x_positions, y_positions, timestamps, ball_radius
 
+def process_data(x_positions, y_positions, timestamps):
 
-def plot_ball_route(x_positions, y_positions):
-    """
-    Plot the route of the ping pong ball, showing its vertical position (y) as a function of its horizontal position (x).
-
-    Args:
-        x_positions (np.ndarray): X coordinates of the ball.
-        y_positions (np.ndarray): Y coordinates of the ball.
-    """
     # Filter out NaN values for continuous plotting
     valid_indices = ~np.isnan(x_positions)
     valid_x_positions = x_positions[valid_indices]
     valid_y_positions = y_positions[valid_indices]
+    timestamps = timestamps[valid_indices]
 
     # Get the initial position of the ball
     initial_x = valid_x_positions[0]
@@ -92,11 +86,49 @@ def plot_ball_route(x_positions, y_positions):
     relative_x_positions = valid_x_positions - initial_x
     relative_y_positions = initial_y - valid_y_positions  # Inverted to make upward movement positive
 
+    return relative_x_positions, relative_y_positions, timestamps
 
 
+def calculate_velocities(x_positions, y_positions, conversion_factor):
+    """
+    Calculate the velocity (m/s) using numpy.gradient.
+
+    Args:
+        x_positions (np.ndarray): X positions of the object in pixels.
+        y_positions (np.ndarray): Y positions of the object in pixels.
+        conversion_factor (float): Conversion factor from pixels to meters.
+
+    Returns:
+        np.ndarray: velocities (m/s) for each frame.
+    """
+
+    dt = 1/2000
+    # Convert positions to meters
+    x_positions_meters = x_positions * conversion_factor
+    y_positions_meters = y_positions * conversion_factor
+
+    # Compute gradients (velocities) in meters per second
+    v_x = np.gradient(x_positions_meters, dt)  # Velocity in x-direction
+    v_y = np.gradient(y_positions_meters, dt)  # Velocity in y-direction
+
+    # Compute total velocity
+    v = np.sqrt(v_x**2 + v_y**2)
+
+    return v
+
+
+
+def plot_ball_route(x_positions, y_positions):
+    """
+    Plot the route of the ping pong ball, showing its vertical position (y) as a function of its horizontal position (x).
+
+    Args:
+        x_positions (np.ndarray): X coordinates of the ball.
+        y_positions (np.ndarray): Y coordinates of the ball.
+    """
     # Plot Y as a function of X
     plt.figure(figsize=(8, 6))
-    plt.plot(relative_x_positions, relative_y_positions, label="Ball Route", color="blue")
+    plt.plot(x_positions, y_positions, label="Ball Route", color="blue")
     plt.xlabel("X Position (pixels)")
     plt.ylabel("Y Position (pixels, Upward)")
     plt.title("Ping Pong Ball Route (Y as a Function of X)")
@@ -120,13 +152,20 @@ def main(video_path):
         print("No ping pong ball detected.")
         return
 
-    # Calculate the conversion factor from pixels to meters
-    valid_indices = ~np.isnan(ball_radius)
-    ball_radius = ball_radius[valid_indices]
-    radius_pixels = numpy.average(ball_radius)
-    conversion_factor = 0.02 / radius_pixels # 0.02 meters is the standard radius of a ping pong ball
+    x_positions, y_positions, timestamps = process_data(x_positions, y_positions, timestamps)
+
+    # Calculate the conversion factor
+    valid_radii = ball_radius[~np.isnan(ball_radius)]
+    radius_pixels = np.mean(valid_radii)
+    conversion_factor = 0.02 / radius_pixels  # Ball radius is 20 mm (0.02 m)
 
     plot_ball_route(x_positions, y_positions)
+
+    # Calculate total velocity for ball and racket
+    v_total_ball = calculate_velocities(x_positions, y_positions, conversion_factor)
+    print(v_total_ball)
+
+
 
 
 # Run the program

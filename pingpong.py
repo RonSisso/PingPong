@@ -120,21 +120,37 @@ def calculate_velocities(x_positions, y_positions, conversion_factor):
 
 def plot_ball_route(x_positions, y_positions):
     """
-    Plot the route of the ping pong ball, showing its vertical position (y) as a function of its horizontal position (x).
+    Plot the route of the ping pong ball with a parabolic fit.
 
     Args:
         x_positions (np.ndarray): X coordinates of the ball.
         y_positions (np.ndarray): Y coordinates of the ball.
     """
-    # Plot Y as a function of X
-    plt.figure(figsize=(8, 6))
-    plt.plot(x_positions, y_positions, label="Ball Route", color="blue")
+    # Perform a parabolic fit to the ball route
+    coefficients = np.polyfit(x_positions, y_positions, 2)  # Fit y = ax^2 + bx + c
+    polynomial = np.poly1d(coefficients)
+
+    # Generate a smooth curve for the fitted parabola
+    x_fit = np.linspace(np.min(x_positions), np.max(x_positions), len(x_positions))
+    y_fit = polynomial(x_fit)
+
+    # Plot the original ball route
+    plt.figure(figsize=(10, 6))
+    plt.plot(x_positions, y_positions, label="Ball Route", color="blue", marker="o")
+
+    # Plot the fitted parabolic curve
+    plt.plot(x_fit, y_fit, label="Parabolic Fit", color="red", linestyle="--")
+
+    # Labels and title
     plt.xlabel("X Position (pixels)")
     plt.ylabel("Y Position (pixels, Upward)")
-    plt.title("Ping Pong Ball Route (Y as a Function of X)")
-    plt.grid()
+    plt.title("Ping Pong Ball Route with Parabolic Fit")
     plt.legend()
+    plt.grid()
+
+    # Show the plot
     plt.show()
+
 
 
 

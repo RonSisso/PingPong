@@ -136,7 +136,7 @@ def plot_ball_route(x_positions, y_positions):
 
     # Plot the original ball route
     plt.figure(figsize=(10, 6))
-    plt.plot(x_positions, y_positions, label="Ball Route", color="blue", marker="o")
+    plt.plot(x_positions, y_positions, label="Ball Route", color="blue")
 
     # Plot the fitted parabolic curve
     plt.plot(x_fit, y_fit, label="Parabolic Fit", color="red", linestyle="--")

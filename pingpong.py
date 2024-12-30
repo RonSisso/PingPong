@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 
-def process_video(video_path):
+def detect_ball_trajectory(video_path):
     """
     Detect the movement of a ping pong ball in a video using HoughCircles and draw detected circles.
 
@@ -12,10 +12,10 @@ def process_video(video_path):
 
     Returns:
         tuple:
-            - X (numpy.ndarray): Array of x-coordinates of the ball.
-            - Y (numpy.ndarray): Array of y-coordinates of the ball.
-            - T (numpy.ndarray): Array of timestamps corresponding to each frame.
-            - R (numpy.ndarray): Array of detected radii of the ball.
+            - ball_x_positions (numpy.ndarray): Array of x-coordinates of the ball.
+            - ball_y_positions (numpy.ndarray): Array of y-coordinates of the ball.
+            - frame_timestamps (numpy.ndarray): Array of timestamps corresponding to each frame.
+            - ball_radii (numpy.ndarray): Array of detected radii of the ball.
     """
     cap = cv2.VideoCapture(video_path)
 
@@ -26,7 +26,7 @@ def process_video(video_path):
     if frame_rate == 0:
         raise ValueError("Could not determine frame rate of the video.")
 
-    X, Y, R, T = [], [], [], []
+    ball_x_positions, ball_y_positions, ball_radii, frame_timestamps = [], [], [], []
     frame_count = 0
 
     while True:
@@ -34,11 +34,11 @@ def process_video(video_path):
         if not ret:
             break
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray_blurred = cv2.GaussianBlur(gray, (9, 9), 2)
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        blurred_frame = cv2.GaussianBlur(gray_frame, (9, 9), 2)
 
         circles = cv2.HoughCircles(
-            gray_blurred,
+            blurred_frame,
             cv2.HOUGH_GRADIENT,
             dp=1.2,
             minDist=30,
@@ -50,14 +50,14 @@ def process_video(video_path):
 
         if circles is not None:
             circles = np.round(circles[0, :]).astype("int")
-            x, y, r = circles[0]
+            x, y, radius = circles[0]
 
-            X.append(x)
-            Y.append(y)
-            R.append(r)
-            T.append(frame_count / frame_rate)
+            ball_x_positions.append(x)
+            ball_y_positions.append(y)
+            ball_radii.append(radius)
+            frame_timestamps.append(frame_count / frame_rate)
 
-            cv2.circle(frame, (x, y), r, (0, 255, 0), 2)
+            cv2.circle(frame, (x, y), radius, (0, 255, 0), 2)
             cv2.circle(frame, (x, y), 2, (0, 0, 255), 3)
 
         cv2.imshow('Detected Ball', frame)
@@ -70,66 +70,35 @@ def process_video(video_path):
     cap.release()
     cv2.destroyAllWindows()
 
-    return np.array(X), np.array(Y), np.array(T), np.array(R)
+    return np.array(ball_x_positions), np.array(ball_y_positions), np.array(frame_timestamps), np.array(ball_radii)
 
-def process_data(x_positions, y_positions, ball_radius):
+def preprocess_positions(ball_x_positions, ball_y_positions, ball_radii):
     """
-    Process the ball's positions to shift the origin and calculate conversion factor.
+    Preprocess ball positions to shift the origin and calculate conversion factor.
 
     Parameters:
-        x_positions (numpy.ndarray): Array of x-coordinates of the ball.
-        y_positions (numpy.ndarray): Array of y-coordinates of the ball.
-        ball_radius (numpy.ndarray): Array of radii of the ball in pixels.
+        ball_x_positions (numpy.ndarray): Array of x-coordinates of the ball.
+        ball_y_positions (numpy.ndarray): Array of y-coordinates of the ball.
+        ball_radii (numpy.ndarray): Array of radii of the ball in pixels.
 
     Returns:
         tuple:
-            - relative_x_positions (numpy.ndarray): Adjusted x-coordinates.
-            - relative_y_positions (numpy.ndarray): Adjusted y-coordinates (upward positive).
-            - conversion_factor (float): Conversion factor from pixels to meters.
+            - adjusted_x_positions (numpy.ndarray): Adjusted x-coordinates.
+            - adjusted_y_positions (numpy.ndarray): Adjusted y-coordinates (upward positive).
+            - pixel_to_meter_factor (float): Conversion factor from pixels to meters.
     """
-    initial_x = x_positions[0]
-    initial_y = y_positions[0]
+    initial_x = ball_x_positions[0]
+    initial_y = ball_y_positions[0]
 
-    relative_x_positions = x_positions - initial_x
-    relative_y_positions = initial_y - y_positions
+    adjusted_x_positions = ball_x_positions - initial_x
+    adjusted_y_positions = initial_y - ball_y_positions
 
-    radius_pixels = np.mean(ball_radius)
-    conversion_factor = 0.02 / radius_pixels  # Assuming the ball radius is 20 mm (0.02 m)
+    average_radius_pixels = np.mean(ball_radii)
+    pixel_to_meter_factor = 0.02 / average_radius_pixels  # Assuming the ball radius is 20 mm (0.02 m)
 
-    return relative_x_positions, relative_y_positions, conversion_factor
+    return adjusted_x_positions, adjusted_y_positions, pixel_to_meter_factor
 
-def plot_ball_route(x_positions, y_positions, x_positions_sim=None, y_positions_sim=None):
-    """
-    Plot the route of the ping pong ball with a parabolic fit and optional simulated trajectory.
-
-    Parameters:
-        x_positions (numpy.ndarray): X coordinates of the ball.
-        y_positions (numpy.ndarray): Y coordinates of the ball.
-        x_positions_sim (numpy.ndarray, optional): Simulated X coordinates of the ball.
-        y_positions_sim (numpy.ndarray, optional): Simulated Y coordinates of the ball.
-    """
-    coefficients = np.polyfit(x_positions, y_positions, 2)
-    polynomial = np.poly1d(coefficients)
-
-    x_fit = np.linspace(np.min(x_positions), np.max(x_positions), len(x_positions))
-    y_fit = polynomial(x_fit)
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(x_positions, y_positions, label="Ball Route (Measured)", color="blue")
-    plt.plot(x_fit, y_fit, label="Parabolic Fit", color="red", linestyle="--")
-
-    if x_positions_sim is not None and y_positions_sim is not None:
-        valid_indices = np.where(x_positions_sim <= 1.1)
-        plt.plot(x_positions_sim[valid_indices], y_positions_sim[valid_indices], label="Simulated Route (Euler)", color="green", linestyle="--")
-
-    plt.xlabel("X Position (meters)")
-    plt.ylabel("Y Position (meters, Upward)")
-    plt.title("Ping Pong Ball Route with Parabolic Fit and Simulated Trajectory")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-def euler_method_with_timestamps(v0_x, v0_y, c_divide_m, timestamps):
+def euler_method(v0_x, v0_y, c_divide_m, timestamps):
     """
     Numerically compute the x and y positions of the ball using Euler's method with given timestamps.
 
@@ -177,34 +146,65 @@ def euler_method_with_timestamps(v0_x, v0_y, c_divide_m, timestamps):
 
     return x_positions, y_positions
 
-def optimize_parameters(measured_x, measured_y, timestamps, bounds):
+def optimize_trajectory_parameters(measured_x_positions, measured_y_positions, timestamps, parameter_bounds):
     """
     Optimize initial velocities and drag coefficient for the best match of the simulated trajectory.
 
     Parameters:
-        measured_x (numpy.ndarray): Measured x-coordinates.
-        measured_y (numpy.ndarray): Measured y-coordinates.
+        measured_x_positions (numpy.ndarray): Measured x-coordinates.
+        measured_y_positions (numpy.ndarray): Measured y-coordinates.
         timestamps (numpy.ndarray): Timestamps for each data point.
-        bounds (list of tuple): Bounds for optimization [(v0_x_min, v0_x_max), (v0_y_min, v0_y_max), (c_divide_m_min, c_divide_m_max)].
+        parameter_bounds (list of tuple): Bounds for optimization [(v0_x_min, v0_x_max), (v0_y_min, v0_y_max), (c_divide_m_min, c_divide_m_max)].
 
     Returns:
-        tuple: Optimized values for initial velocities and drag coefficient (v0_x, v0_y, c_divide_m).
+        tuple: Optimized values for initial velocities and drag coefficient (v0_x, v0_y, c/m).
     """
-    def objective(params):
+    def objective_function(params):
         v0_x, v0_y, c_divide_m = params
-        sim_x, sim_y = euler_method_with_timestamps(v0_x, v0_y, c_divide_m, timestamps)
-        sim_y_interp = np.interp(measured_x, sim_x, sim_y)
-        mse = np.mean((sim_y_interp - measured_y)**2)
+        sim_x, sim_y = euler_method(v0_x, v0_y, c_divide_m, timestamps)
+        interpolated_sim_y = np.interp(measured_x_positions, sim_x, sim_y)
+        mse = np.mean((interpolated_sim_y - measured_y_positions)**2)
         return mse
 
     initial_guess = np.array([2.2, 2.1, 0.18])
-    result = minimize(objective, initial_guess, bounds=bounds, method='L-BFGS-B')
+    result = minimize(objective_function, initial_guess, bounds=parameter_bounds, method='L-BFGS-B')
 
     if result.success:
-        print(f"Optimized Parameters:\nv0_x: {result.x[0]}\nv0_y: {result.x[1]}\nc/m: {result.x[2]}")
+        print(f"Optimized Parameters:\nInitial Velocity X: {result.x[0]}\nInitial Velocity Y: {result.x[1]}\nDrag Coefficient/Mass: {result.x[2]}")
         return result.x
     else:
         raise ValueError("Optimization failed.")
+
+def plot_ball_trajectory(measured_x_positions, measured_y_positions, simulated_x_positions=None, simulated_y_positions=None):
+    """
+    Plot the trajectory of the ping pong ball with measured, simulated, and fitted data.
+
+    Parameters:
+        measured_x_positions (numpy.ndarray): Measured x positions of the ball.
+        measured_y_positions (numpy.ndarray): Measured y positions of the ball.
+        simulated_x_positions (numpy.ndarray, optional): Simulated x positions of the ball.
+        simulated_y_positions (numpy.ndarray, optional): Simulated y positions of the ball.
+    """
+    coefficients = np.polyfit(measured_x_positions, measured_y_positions, 2)
+    polynomial_fit = np.poly1d(coefficients)
+
+    fitted_x = np.linspace(np.min(measured_x_positions), np.max(measured_x_positions), len(measured_x_positions))
+    fitted_y = polynomial_fit(fitted_x)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(measured_x_positions, measured_y_positions, label="Measured Trajectory", color="blue")
+    plt.plot(fitted_x, fitted_y, label="Parabolic Fit", color="red", linestyle="--")
+
+    if simulated_x_positions is not None and simulated_y_positions is not None:
+        valid_indices = np.where(simulated_x_positions <= 1.1)
+        plt.plot(simulated_x_positions[valid_indices], simulated_y_positions[valid_indices], label="Simulated Trajectory", color="green", linestyle="--")
+
+    plt.xlabel("X Position (meters)")
+    plt.ylabel("Y Position (meters)")
+    plt.title("Ping Pong Ball Trajectory")
+    plt.legend()
+    plt.grid()
+    plt.show()
 
 def main(video_path):
     """
@@ -213,24 +213,24 @@ def main(video_path):
     Parameters:
         video_path (str): Path to the video file.
     """
-    x_positions, y_positions, timestamps, ball_radius = process_video(video_path)
-    x_positions, y_positions, conversion_factor = process_data(x_positions, y_positions, ball_radius)
+    ball_x_positions, ball_y_positions, frame_timestamps, ball_radii = detect_ball_trajectory(video_path)
+    ball_x_positions, ball_y_positions, conversion_factor = preprocess_positions(ball_x_positions, ball_y_positions, ball_radii)
 
-    x_positions = x_positions * conversion_factor
-    y_positions = y_positions * conversion_factor
+    ball_x_positions = ball_x_positions * conversion_factor
+    ball_y_positions = ball_y_positions * conversion_factor
 
-    bounds = [(2.0, 4.0), (1.5, 3.5), (0.1, 0.3)]
+    parameter_bounds = [(2.0, 4.0), (1.5, 3.5), (0.1, 0.3)]
 
     # Uncomment the next line to run optimization
-    # v0_x, v0_y, c_divide_m = optimize_parameters(x_positions, y_positions, timestamps, bounds)
+    # v0_x, v0_y, c_divide_m = optimize_trajectory_parameters(ball_x_positions, ball_y_positions, frame_timestamps, parameter_bounds)
 
     v0_x = 2.2827121483095105
     v0_y = 2.078439321009488
     c_divide_m = 0.23170458676029024
 
-    x_positions_sim, y_positions_sim = euler_method_with_timestamps(v0_x, v0_y, c_divide_m, timestamps)
+    simulated_x_positions, simulated_y_positions = euler_method(v0_x, v0_y, c_divide_m, frame_timestamps)
 
-    plot_ball_route(x_positions, y_positions, x_positions_sim, y_positions_sim)
+    plot_ball_trajectory(ball_x_positions, ball_y_positions, simulated_x_positions, simulated_y_positions)
 
 if __name__ == "__main__":
     video_path = 'Ping_pong.mp4'

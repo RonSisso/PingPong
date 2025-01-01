@@ -98,7 +98,7 @@ def preprocess_positions(ball_x_positions, ball_y_positions, ball_radii):
 
     return adjusted_x_positions, adjusted_y_positions, pixel_to_meter_factor
 
-def euler_method(v0_x, v0_y, c_divide_m, timestamps):
+def euler_method(v0_x, v0_y, c_divide_m, g, timestamps):
     """
     Numerically compute the x and y positions of the ball using Euler's method with given timestamps.
 
@@ -106,6 +106,7 @@ def euler_method(v0_x, v0_y, c_divide_m, timestamps):
         v0_x (float): Initial velocity in x-direction (m/s).
         v0_y (float): Initial velocity in y-direction (m/s).
         c_divide_m (float): Drag coefficient divided by mass (1/kg).
+        g (float): Gravitational acceleration (m/s^2).
         timestamps (numpy.ndarray): Array of timestamps (s) for each time step.
 
     Returns:
@@ -113,7 +114,6 @@ def euler_method(v0_x, v0_y, c_divide_m, timestamps):
             - x_positions (numpy.ndarray): X positions at each time step.
             - y_positions (numpy.ndarray): Y positions at each time step.
     """
-    g = 9.8  # Gravitational acceleration (m/s^2)
     num_steps = len(timestamps)
 
     x_positions = np.zeros(num_steps)
@@ -146,34 +146,36 @@ def euler_method(v0_x, v0_y, c_divide_m, timestamps):
 
     return x_positions, y_positions
 
+
 def optimize_trajectory_parameters(measured_x_positions, measured_y_positions, timestamps, parameter_bounds):
     """
-    Optimize initial velocities and drag coefficient for the best match of the simulated trajectory.
+    Optimize initial velocities, drag coefficient, and gravity for the best match of the simulated trajectory.
 
     Parameters:
         measured_x_positions (numpy.ndarray): Measured x-coordinates.
         measured_y_positions (numpy.ndarray): Measured y-coordinates.
         timestamps (numpy.ndarray): Timestamps for each data point.
-        parameter_bounds (list of tuple): Bounds for optimization [(v0_x_min, v0_x_max), (v0_y_min, v0_y_max), (c_divide_m_min, c_divide_m_max)].
+        parameter_bounds (list of tuple): Bounds for optimization [(v0_x_min, v0_x_max), (v0_y_min, v0_y_max), (c_divide_m_min, c_divide_m_max), (g_min, g_max)].
 
     Returns:
-        tuple: Optimized values for initial velocities and drag coefficient (v0_x, v0_y, c/m).
+        tuple: Optimized values for initial velocities, drag coefficient, and gravity (v0_x, v0_y, c/m, g).
     """
     def objective_function(params):
-        v0_x, v0_y, c_divide_m = params
-        sim_x, sim_y = euler_method(v0_x, v0_y, c_divide_m, timestamps)
+        v0_x, v0_y, c_divide_m, g = params
+        sim_x, sim_y = euler_method(v0_x, v0_y, c_divide_m, g, timestamps)
         interpolated_sim_y = np.interp(measured_x_positions, sim_x, sim_y)
         mse = np.mean((interpolated_sim_y - measured_y_positions)**2)
         return mse
 
-    initial_guess = np.array([2.2, 2.1, 0.18])
+    initial_guess = np.array([2.2, 2.1, 0.18, 9.8])
     result = minimize(objective_function, initial_guess, bounds=parameter_bounds, method='L-BFGS-B')
 
     if result.success:
-        print(f"Optimized Parameters:\nInitial Velocity X: {result.x[0]}\nInitial Velocity Y: {result.x[1]}\nDrag Coefficient/Mass: {result.x[2]}")
+        print(f"Optimized Parameters:\nInitial Velocity X: {result.x[0]}\nInitial Velocity Y: {result.x[1]}\nDrag Coefficient/Mass: {result.x[2]}\nGravity: {result.x[3]}")
         return result.x
     else:
         raise ValueError("Optimization failed.")
+
 
 def plot_ball_trajectory(measured_x_positions, measured_y_positions, simulated_x_positions=None, simulated_y_positions=None):
     """
@@ -219,16 +221,17 @@ def main(video_path):
     ball_x_positions = ball_x_positions * conversion_factor
     ball_y_positions = ball_y_positions * conversion_factor
 
-    parameter_bounds = [(2.0, 4.0), (1.5, 3.5), (0.1, 0.3)]
+    parameter_bounds = [(2.0, 4.0), (1.5, 3.5), (0.1, 0.3), (9.0, 10.0)]
 
     # Uncomment the next line to run optimization
-    # v0_x, v0_y, c_divide_m = optimize_trajectory_parameters(ball_x_positions, ball_y_positions, frame_timestamps, parameter_bounds)
+    #v0_x, v0_y, c_divide_m, g = optimize_trajectory_parameters(ball_x_positions, ball_y_positions, frame_timestamps, parameter_bounds)
 
     v0_x = 2.2827121483095105
     v0_y = 2.078439321009488
     c_divide_m = 0.23170458676029024
+    g = 9.793258213345998
 
-    simulated_x_positions, simulated_y_positions = euler_method(v0_x, v0_y, c_divide_m, frame_timestamps)
+    simulated_x_positions, simulated_y_positions = euler_method(v0_x, v0_y, c_divide_m, g, frame_timestamps)
 
     plot_ball_trajectory(ball_x_positions, ball_y_positions, simulated_x_positions, simulated_y_positions)
 
